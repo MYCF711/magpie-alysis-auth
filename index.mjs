@@ -246,9 +246,9 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
     //   两处内容一样，直接抄同一份 data URI。见 HOOKS.md「插件自己的图标」。
     icon: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4Ij48cmVjdCB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgcng9IjI4IiBmaWxsPSIjMWYyOTM3Ii8+PHRleHQgeD0iNjQiIHk9Ijg0IiBmb250LXNpemU9IjYwIiBmb250LWZhbWlseT0ic3lzdGVtLXVpLHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiM2MGE1ZmEiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkE8L3RleHQ+PC9zdmc+",
     maxConcurrency: 4, // 1-1000
-    // 同一 provider 只保留一张卡：本机导入与设备码登录拿到的是同一个账号，
-    // 不设 single 会各加一条（「MYCF711」和「Signed in (xxxxxx)」并排）。
-    single: true,
+    // 不设 single：不同的 Alysis 账号可以并存，第二个登录不会顶掉第一个。
+    // 同一个账号的重复登录靠 accountId 合并（resolveAccountId 从 account-status
+    // 取 display_name）；两个 key 指向同一账号时不会再多出一张卡。
     refreshLead: REFRESH_LEAD_MS,
 
     // ═══ ② 登录 ═══════════════════════════════════════════════════

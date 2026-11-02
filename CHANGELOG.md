@@ -3,6 +3,12 @@
 > 每个版本一节，**一条一行**，说用户能感知的变化。
 > 格式与规矩见 [UPDATING.md](./UPDATING.md)。
 
+## 0.1.8 — 2026-11-03
+
+**变更**
+
+- 去掉 `auth.single`：不同的 Alysis 账号可以并存，第二个登录不再顶掉第一个；同一账号的重复登录由 accountId（account-status 的 display_name）合并
+
 ## 0.1.7 — 2026-11-03
 
 **修复**
