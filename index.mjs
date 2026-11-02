@@ -107,6 +107,12 @@ const MODELS = [
   ["claude-haiku-5-5", "Claude Haiku 5.5", 1_000_000, ["low", "medium", "high"], "@ai-sdk/anthropic", true],
 ]
 
+/** 别名 → 上游真实模型 id（上游只认 deepseek-flash 等 4 个 id，不认别名）。 */
+const API_ID = {
+  "deepseek-chat": "deepseek-flash",
+  "deepseek-reasoner": "deepseek-flash",
+}
+
 /** 静态模型表（未登录 / 拉取失败时兜底） */
 function staticModels() {
   const out = {}
@@ -114,7 +120,7 @@ function staticModels() {
     out[id] = {
       id,
       name,
-      api: { id, url: BASE, npm: npm || SDK },
+      api: { id: API_ID[id] || id, url: BASE, npm: npm || SDK },
       status: "active",
       cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
       limit: { context, output: 128_000 },
@@ -714,6 +720,12 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
             },
             variants: { low: {}, medium: {}, high: {} },
           }
+        }
+
+        // 别名在上游没有独立 id：模型名留给用户选，api.id 指向真实模型。
+        for (const [alias, target] of Object.entries(API_ID)) {
+          if (out[alias] || !out[target]) continue
+          out[alias] = { ...out[target], id: alias, api: { ...out[target].api, id: target } }
         }
         return out
       } catch (e) {
