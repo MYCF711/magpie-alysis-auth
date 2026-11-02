@@ -480,15 +480,14 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
         windows.push(usageWindow({ name: "剩余余额", balance: u.balance, unit: "USD" }))
       }
 
-      // ④ 上游读不到时明确说「不知道占比」，不要假装 0%
+      // ④ 上游读不到时交给卡片的 error，不要造一条 textOnly 窗口：
+      //   usage() 会拒绝「所有窗口都不参与路由」的账号（路由页会显示
+      //   「剩余额度未知」并排在最后），而伪造 used: 0 又会让空号排到队首。
       if (!windows.length) {
-        windows.push(
-          usageWindow({
-            name: "额度",
-            textOnly: true,
-            display: "上游暂时返回不了额度（alysis2api 未连上游或账号未登录）",
-          }),
-        )
+        return {
+          error: "上游暂时返回不了额度（alysis2api 未连上游或账号未登录）",
+          windows: [],
+        }
       }
 
       return buildUsage({
