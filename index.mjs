@@ -65,7 +65,7 @@ import { startDeviceGrant, approvalUrl, pollForKey, openIsolatedBrowser } from "
 
 const PROVIDER = "alysis" // ⚠ 改成厂商 id，如 "huawei"
 const PROVIDER_NAME = "Alysis Code 免费额度" // ⚠ 改成 <中文> <English>，英文照抄厂商官方写法
-const BASE = "http://127.0.0.1:8788/v1"
+const BASE = "https://vzigujbcjjmpntxhmyvr.supabase.co/functions/v1/llm/v1"
 const SDK = "@ai-sdk/openai-compatible" // 决定 API 形状，见下表
 const REFRESH_LEAD_MS = 5 * 60_000
 // Alysis 云端函数 API（设备码、账号状态）；和网关同源，但不是凭据。
@@ -438,7 +438,7 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
      */
     async refresh(auth, provider) {
       // Alysis 的 slk_ key 长期有效、不轮换；真正会过期的是上游的账号会话，
-      // 那是 alysis2api 里账号池的事。这里保留续期闸，但只做「合并」语义的空续期：
+      // 这里保留续期闸，但只做「合并」语义的空续期：
       // 返回 undefined = 不续期，原有 access/refresh/expires 全部保留。
       if (!auth?.access) return undefined
       await refreshLock.run(`${PROVIDER}\n${auth.refresh}`, async () => undefined)
@@ -467,10 +467,10 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
 
       return {
         baseURL: BASE,
-        // alysis2api 默认接受任意 key；把 slk_ key 传过去，便于用户在严格模式下启用校验。
+        // 每个账号用自己的 slk_ key 直连上游；magpie 按 SDK 自动加 Authorization / x-api-key。
         apiKey: auth.access || "sk-local",
         headers: {
-          "user-agent": "alysis2api-magpie/0.1.0",
+          "user-agent": "alysis-magpie/0.1.0",
         },
 
         async fetch(input, init) {
@@ -490,14 +490,14 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
           for (const [k, v] of incoming) {
             const lower = k.toLowerCase()
             // 这几个必须由我们决定
-            if (["authorization", "host", "content-length", "user-agent"].includes(lower)) continue
+            if (["authorization", "x-api-key", "host", "content-length", "user-agent"].includes(lower)) continue
             headers[k] = v
           }
 
           let body = init?.body
           if (body === undefined && req) body = await req.text()
 
-          // 不读流、不改 body：alysis2api 已经做过排队/重试和协议适配。
+          // 不读流、不改 body：429 与限流原样交给 magpie 的账号路由处理。
           try {
             return await fetch(url, {
               method: init?.method ?? "POST",
@@ -513,9 +513,9 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
                   error: {
                     message:
                       `${PROVIDER_NAME} 的本地反代没有运行。` +
-                      `请先启动配套的 alysis2api 反代（默认 http://127.0.0.1:8788/v1），再重试。`,
+                      `连不上 Alysis 网关（${BASE}）。检查网络或代理设置后重试。`,
                     type: "upstream_unreachable",
-                    code: "alysis2api_unreachable",
+                    code: "alysis_upstream_unreachable",
                   },
                 }),
                 { status: 503, headers: { "content-type": "application/json; charset=utf-8" } },
@@ -601,7 +601,7 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
       //   「剩余额度未知」并排在最后），而伪造 used: 0 又会让空号排到队首。
       if (!windows.length) {
         return {
-          error: "上游暂时返回不了额度（alysis2api 未连上游或账号未登录）",
+          error: "上游暂时返回不了额度（账号未登录或 account-status 不可用）",
           windows: [],
         }
       }
@@ -667,7 +667,7 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
       if (!auth || auth.type !== "oauth") return fallback
 
       try {
-        // 不写死模型：模型列表由 alysis2api 的 /v1/models 从上游自动发现。
+        // 不写死模型：模型列表每账号直连上游 /models 自动发现。
         const live = await fetchLiveModels(auth)
         if (!live.length) return fallback
 
@@ -743,7 +743,7 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
 // ── 实现：额度 / 模型目录 ───────────────────────────────────────────
 
 /**
- * 从 alysis2api 的 GET /v1/usage 拿额度。
+ * 从上游 account-status 拿额度（每个账号自己的 key）。
  * 数据来自上游 Alysis hosted gateway 的 account-status：
  *   billing.cap_5h_microusd / burn_5h_microusd  —— 5 小时公平使用窗口
  *   billing.cap_7d_microusd / burn_7d_microusd  —— 7 天窗口
@@ -751,16 +751,14 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
  * 金额单位是 micro-USD（1e-6 美元）。
  */
 async function fetchUsage(auth) {
-  const res = await fetch(`${BASE}/usage`, {
-    headers: { authorization: `Bearer ${auth.access || "sk-local"}` },
+  // 每账号直连 account-status：额度属于 key 自己，不经过本机反代（那会用池里的号串账）。
+  const res = await fetch(`${CLOUD_API}/account-status`, {
+    headers: { authorization: `Bearer ${auth.access || ""}` },
     signal: AbortSignal.timeout(12_000),
   })
-  if (!res.ok) throw new Error(`alysis2api /v1/usage HTTP ${res.status}`)
-  const data = await res.json()
-
-  const account = data?.account_status || {}
+  if (!res.ok) throw new Error(`account-status HTTP ${res.status}`)
+  const account = await res.json()
   const billing = account?.billing || {}
-  const models = data?.models || {}
 
   const usd = (micro) => (Number.isFinite(micro) ? micro / 1_000_000 : undefined)
   const percent = (burn, cap) => {
@@ -790,23 +788,19 @@ async function fetchUsage(auth) {
     balance: usd(billing.balance_microusd),
     fiveHour,
     weekly,
-    // 附带：本地反代自动发现了哪些模型（调试用，不进卡片）
-    modelsSource: models.source || "",
-    modelsCount: Array.isArray(models.cachedIds) ? models.cachedIds.length : 0,
   }
 }
 
 /**
- * 从 alysis2api 的 GET /v1/models 拿模型目录。
- * 反代自己会从上游 /models 自动发现并缓存，所以这里天然是「不写死」的。
+ * 每账号直连上游 GET /models：目录属于 key 自己，不经过本机反代。
  */
 async function fetchLiveModels(auth) {
   const res = await fetch(`${BASE}/models`, {
-    headers: { authorization: `Bearer ${auth.access || "sk-local"}` },
+    headers: { authorization: `Bearer ${auth.access || ""}` },
     signal: AbortSignal.timeout(12_000),
   })
   if (res.status === 401) throw new Error("401 登录已失效")
-  if (!res.ok) throw new Error(`alysis2api /v1/models HTTP ${res.status}`)
+  if (!res.ok) throw new Error(`上游 /v1/models HTTP ${res.status}`)
   const data = await res.json()
   const rows = Array.isArray(data?.data) ? data.data : []
   return rows
