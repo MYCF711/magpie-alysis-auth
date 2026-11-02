@@ -260,10 +260,10 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
          */
         async authorize(_inputs) {
           // 铁律 2：authorize 立刻返回；读本机登录态放在 callback 里做。
-          // url 给 about:blank：本方式不需要任何页面，也不允许 magpie 顺手打开
-          // 默认浏览器（那会复用用户日常浏览器里的 alysis 会话）。
+          // url 只是给面板显示一个正常地址；opened: true 让 magpie 不要打开它
+          // （打开默认浏览器会复用用户日常浏览器里的 alysis 会话）。
           return {
-            url: "about:blank",
+            url: "https://alysiscode.com/account",
             instructions:
               "本插件复用本机 Alysis Code 客户端已经登录的免费账号（slk_ key），不用输入任何东西，也不会打开浏览器。请确认 Alysis Code 已登录，然后点继续。",
             method: "auto", // "auto" | "code"（code = 用户要粘贴授权码）
@@ -310,10 +310,10 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
         async authorize() {
           // 铁律 2：立刻返回。设备码与浏览器都在 callback 里。
           return {
-            url: "about:blank", // magpie 不要打开任何页面
+            url: "https://alysiscode.com/login?lang=auto", // 只用于面板显示；opened: true 阻止 magpie 打开它
             opened: true,
             instructions:
-              "会打开一个一次性的隔离浏览器窗口（独立配置，不会复用默认浏览器里的登录态）。请在窗口里登录 Alysis 并批准登录码；窗口关闭后自动完成。",
+              "会打开一个一次性的隔离浏览器窗口（独立配置，不会复用默认浏览器里的登录态），并自动切到注册页。请在窗口里完成注册/登录，插件会自动填好设备码；窗口关闭后自动完成。请不要用「重新打开」——那条会用默认浏览器。",
             method: "auto",
 
             async callback() {
