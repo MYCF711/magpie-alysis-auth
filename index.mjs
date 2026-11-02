@@ -351,11 +351,9 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
                           return "wait";
                         }
 
-                        // 3) 登录页：默认切到注册（只点「第一次使用 / New here」，
-                        //    不点注册表单的提交按钮）
+                        // 3) 登录页：什么都不点。登录还是注册由用户自己选 ——
+                        //    锁定注册会让人点「登录」后被反复弹回注册页。
                         if (path.startsWith("/login") || path.startsWith("/signup") || path.startsWith("/register")) {
-                          const signup = nodes.find((n) => /第一次使用|new here/i.test(textOf(n)));
-                          if (signup) { signup.click(); }
                           return "wait";
                         }
 
