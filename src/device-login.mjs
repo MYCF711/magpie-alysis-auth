@@ -134,9 +134,18 @@ export function openIsolatedBrowser(url, { browser = findBrowser() } = {}) {
     try {
       child.kill()
     } catch {}
-    try {
-      rmSync(profile, { recursive: true, force: true })
-    } catch {}
+    // Windows 上浏览器退出后仍会短暂持有 profile 里的文件句柄，立即 rm 会失败。
+    // 后台重试删除（最多 5 次），不阻塞 finally。
+    let tries = 0
+    const remove = () => {
+      tries += 1
+      try {
+        rmSync(profile, { recursive: true, force: true })
+      } catch {
+        if (tries < 5) setTimeout(remove, 500)
+      }
+    }
+    setTimeout(remove, 600)
   }
   return { close, profile, browser: browser.name }
 }

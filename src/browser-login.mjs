@@ -48,7 +48,7 @@ export function registryAppPath(exe) {
       `SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths\\${exe}`,
     ]) {
       try {
-        const out = execFileSync("reg", ["query", `${root}\\${tail}`, "/ve"], { encoding: "utf8", timeout: 5000 })
+        const out = execFileSync("reg", ["query", `${root}\\${tail}`, "/ve"], { encoding: "utf8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"] })
         const line = out.split("\n").find((l) => /REG_SZ/i.test(l))
         const path = line?.split("REG_SZ")[1]?.trim()
         if (path && existsSync(path)) return path
