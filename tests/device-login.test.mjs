@@ -108,7 +108,7 @@ test("pollForKey：expired / already_claimed 都按过期处理", async () => {
   }
 })
 
-test("openIsolatedBrowser：没有 Chromium 浏览器就明确报错，不退回默认浏览器", () => {
-  assert.throws(() => openIsolatedBrowser("https://example.com", { browser: null }), /没有找到 Chromium 内核浏览器/)
-  assert.throws(() => openIsolatedBrowser("https://example.com", { browser: { path: "" } }), /没有找到 Chromium 内核浏览器/)
+test("openIsolatedBrowser：没有 Chromium 浏览器就明确报错，不退回默认浏览器", async () => {
+  await assert.rejects(() => openIsolatedBrowser("https://example.com", { browser: null }), /没有找到 Chromium 内核浏览器/)
+  await assert.rejects(() => openIsolatedBrowser("https://example.com", { browser: { path: "" } }), /没有找到 Chromium 内核浏览器/)
 })

@@ -320,7 +320,53 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
               let win = null
               try {
                 const grant = await startDeviceGrant()
-                win = openIsolatedBrowser(approvalUrl(grant.userCode))
+                const activate = approvalUrl(grant.userCode)
+                // 隔离窗口直接落在登录页，并且默认切到「注册」——隔离 profile 里没有
+                // 任何登录态，首次使用的人大概率还没有账号。已有账号的人点一下「登录」即可。
+                win = await openIsolatedBrowser("https://alysiscode.com/login?lang=auto", {
+                  prepare: async (page) => {
+                    const state = await page.evaluate(`
+                      (() => {
+                        const ACTIVATE = ${JSON.stringify(activate)};
+                        const CODE = ${JSON.stringify(grant.userCode)};
+                        const path = location.pathname;
+                        const nodes = Array.from(document.querySelectorAll("a,button"));
+                        const textOf = (n) => (n.textContent || "").trim();
+
+                        // 1) 还在加载 / 空白页：等
+                        if (!path || path === "/" || path === "blank") return "wait";
+
+                        // 2) 批准页：填码并提交
+                        if (path.startsWith("/activate")) {
+                          const input = document.querySelector('input[name="code"]');
+                          const submit = document.querySelector('[data-activate-submit]');
+                          if (input) {
+                            if (input.value !== CODE) {
+                              input.value = CODE;
+                              input.dispatchEvent(new Event("input", { bubbles: true }));
+                              input.dispatchEvent(new Event("change", { bubbles: true }));
+                            }
+                            if (submit && !submit.disabled) { submit.click(); return "done"; }
+                          }
+                          return "wait";
+                        }
+
+                        // 3) 登录页：默认切到注册（只点「第一次使用 / New here」，
+                        //    不点注册表单的提交按钮）
+                        if (path.startsWith("/login") || path.startsWith("/signup") || path.startsWith("/register")) {
+                          const signup = nodes.find((n) => /第一次使用|new here/i.test(textOf(n)));
+                          if (signup) { signup.click(); }
+                          return "wait";
+                        }
+
+                        // 4) 登录成功后落在账户页：回到批准页填码
+                        location.href = ACTIVATE;
+                        return "wait";
+                      })()
+                    `)
+                    return state === "done" ? "done" : "wait"
+                  },
+                })
                 const key = await pollForKey(grant)
                 if (!/^slk_/.test(key)) {
                   return { type: "failed", error: "服务端返回的 key 不是 slk_ 开头，拒绝保存" }

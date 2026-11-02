@@ -5,8 +5,9 @@
 // 用户日常浏览器里的 alysis 会话（用户明确要求不要这样），所以这里：
 //   1. POST device-code 拿 user_code；
 //   2. 用一次性的 Chromium user-data-dir 打开 /activate?code=…（不碰默认浏览器）；
-//   3. 轮询 device-token 拿 slk_ key；
-//   4. 关闭窗口并删掉临时 profile。
+//   3. 页面就绪后由 prepare() 自动处理：未登录先落到「注册」、登录后自动填 code 并提交；
+//   4. 轮询 device-token 拿 slk_ key；
+//   5. 关闭窗口并删掉临时 profile。
 //
 // 协议事实来自 Alysis Code CLI（alysis_code/alysis_cloud.py、account_login.py）：
 //   POST {cloud}/device-code  {"client_name", "installation_id"}
@@ -18,6 +19,7 @@
 import { spawn } from "node:child_process"
 import crypto from "node:crypto"
 import { mkdtempSync, rmSync } from "node:fs"
+import { createServer } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -28,6 +30,7 @@ const SITE_URL = "https://alysiscode.com"
 const DEFAULT_INTERVAL_S = 3
 const DEFAULT_EXPIRES_S = 15 * 60
 const POLL_TIMEOUT_MS = 15 * 60_000
+const PREPARE_TIMEOUT_MS = 5 * 60_000
 
 function cloudApi() {
   const raw = process.env.ALYSIS_CLOUD_API_URL || DEFAULT_CLOUD_API
@@ -107,17 +110,93 @@ export async function pollForKey(grant, { signal, timeoutMs = POLL_TIMEOUT_MS } 
   }
 }
 
+// ── 一次性隔离浏览器 ──────────────────────────────────────────────────
+
+async function freePort() {
+  return new Promise((resolve, reject) => {
+    const srv = createServer()
+    srv.unref()
+    srv.on("error", reject)
+    srv.listen(0, "127.0.0.1", () => {
+      const port = srv.address().port
+      srv.close(() => resolve(port))
+    })
+  })
+}
+
+async function pageWsUrl(port, timeoutMs = 20_000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/json/list`, { signal: AbortSignal.timeout(1000) })
+      const pages = await res.json()
+      const page = Array.isArray(pages) ? pages.find((p) => p?.type === "page" && p.webSocketDebuggerUrl) : null
+      if (page) return page.webSocketDebuggerUrl
+    } catch {
+      // 浏览器还没起来，继续等
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300))
+  }
+  return ""
+}
+
+function cdpConnect(wsUrl) {
+  const ws = new WebSocket(wsUrl)
+  let seq = 0
+  const pending = new Map()
+  ws.addEventListener("message", (event) => {
+    let msg = null
+    try {
+      msg = JSON.parse(String(event.data))
+    } catch {
+      return
+    }
+    const entry = msg?.id ? pending.get(msg.id) : null
+    if (!entry) return
+    pending.delete(msg.id)
+    if (msg.error) entry.reject(new Error(msg.error.message || "CDP error"))
+    else entry.resolve(msg.result)
+  })
+  const ready = new Promise((resolve, reject) => {
+    ws.addEventListener("open", resolve, { once: true })
+    ws.addEventListener("error", () => reject(new Error("CDP 连不上隔离浏览器")), { once: true })
+  })
+  return {
+    ready,
+    send(method, params = {}) {
+      return new Promise((resolve, reject) => {
+        const id = ++seq
+        pending.set(id, { resolve, reject })
+        ws.send(JSON.stringify({ id, method, params }))
+      })
+    },
+    close() {
+      try {
+        ws.close()
+      } catch {}
+    },
+  }
+}
+
 /**
  * 打开一个一次性隔离浏览器窗口（独立 user-data-dir，退出即删除）。
- * 不等待任何 Cookie / 页面状态 —— 只负责把批准页摆到用户面前。
- * @returns {{ close: () => void, profile: string, browser: string }}
+ *
+ * @param {string} url
+ * @param {{
+ *   browser?: {name:string, path:string} | null,
+ *   prepare?: (page: { evaluate: (expr: string) => Promise<any> }) => Promise<"done" | "wait">,
+ * }} [options]
+ *   prepare 在窗口打开后后台轮询调用（每 1.2 秒），返回 "done" 结束。
+ * @returns {Promise<{ close: () => void, profile: string, browser: string, evaluate: (expr: string) => Promise<any> }>}
  */
-export function openIsolatedBrowser(url, { browser = findBrowser() } = {}) {
+export async function openIsolatedBrowser(url, { browser = findBrowser(), prepare } = {}) {
   if (!browser?.path) throw new Error("没有找到 Chromium 内核浏览器（Chrome / Edge / 360 / QQ 等）")
   const profile = mkdtempSync(join(tmpdir(), "magpie-alysis-login-"))
+  const port = await freePort()
   const child = spawn(
     browser.path,
     [
+      `--remote-debugging-port=${port}`,
       `--user-data-dir=${profile}`,
       "--no-first-run",
       "--no-default-browser-check",
@@ -127,10 +206,16 @@ export function openIsolatedBrowser(url, { browser = findBrowser() } = {}) {
     ],
     { stdio: "ignore", windowsHide: false, detached: false },
   )
+
   let closed = false
+  let conn = null
+
   const close = () => {
     if (closed) return
     closed = true
+    try {
+      conn?.close()
+    } catch {}
     try {
       child.kill()
     } catch {}
@@ -147,7 +232,43 @@ export function openIsolatedBrowser(url, { browser = findBrowser() } = {}) {
     }
     setTimeout(remove, 600)
   }
-  return { close, profile, browser: browser.name }
+
+  const page = {
+    profile,
+    browser: browser.name,
+    close,
+    async evaluate(expression) {
+      if (closed) throw new Error("隔离浏览器已关闭")
+      if (!conn) {
+        const wsUrl = await pageWsUrl(port)
+        if (!wsUrl) throw new Error("隔离浏览器没有暴露调试端口")
+        conn = cdpConnect(wsUrl)
+        await conn.ready
+      }
+      const result = await conn.send("Runtime.evaluate", {
+        expression,
+        returnByValue: true,
+        awaitPromise: true,
+      })
+      return result?.result?.value
+    },
+  }
+
+  if (typeof prepare === "function") {
+    void (async () => {
+      const deadline = Date.now() + PREPARE_TIMEOUT_MS
+      while (!closed && Date.now() < deadline) {
+        try {
+          if ((await prepare(page)) === "done") return
+        } catch {
+          // 页面还没就绪 / 导航中：下一轮再试
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1200))
+      }
+    })()
+  }
+
+  return page
 }
 
-export const _internal = { cloudApi, DEFAULT_CLOUD_API, SITE_URL, POLL_TIMEOUT_MS }
+export const _internal = { cloudApi, DEFAULT_CLOUD_API, SITE_URL, POLL_TIMEOUT_MS, PREPARE_TIMEOUT_MS }
