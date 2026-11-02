@@ -13,3 +13,4 @@
 - 额度卡片：5 小时 / 7 天公平使用窗口 + 免费余额，来自上游 account-status
 - 签到：无（免费额度按月自动 refill，不是每日签到）
 - 依赖本机 alysis2api 反代（`http://127.0.0.1:8788/v1`）；没启动时返回 503 和启动提示，不静默失败
+- 首发：npm `magpie-alysis-auth@0.1.0` + GitHub Release
