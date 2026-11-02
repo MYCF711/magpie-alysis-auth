@@ -3,6 +3,11 @@
 > 每个版本一节，**一条一行**，说用户能感知的变化。
 > 格式与规矩见 [UPDATING.md](./UPDATING.md)。
 
+## 0.1.11 — 2026-11-03
+
+**修复**
+
+- 别名模型显示名不再继承目标：deepseek-chat / deepseek-reasoner 分别显示 DeepSeek Chat / DeepSeek Reasoner，列表里不再出现三个「DeepSeek V4.1 Flash」
 ## 0.1.10 — 2026-11-03
 
 **修复**

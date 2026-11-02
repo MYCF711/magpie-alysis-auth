@@ -725,7 +725,13 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
         // 别名在上游没有独立 id：模型名留给用户选，api.id 指向真实模型。
         for (const [alias, target] of Object.entries(API_ID)) {
           if (out[alias] || !out[target]) continue
-          out[alias] = { ...out[target], id: alias, api: { ...out[target].api, id: target } }
+          out[alias] = {
+            ...out[target],
+            id: alias,
+            // 别名用自己的名字，否则列表里会出现三个「DeepSeek V4.1 Flash」
+            name: fallback[alias]?.name || alias,
+            api: { ...out[target].api, id: target },
+          }
         }
         return out
       } catch (e) {
