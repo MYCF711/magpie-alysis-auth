@@ -59,6 +59,7 @@ import crypto from "node:crypto"
 import { usage as buildUsage, usageWindow } from "./src/quota.mjs"
 import { createRefreshLock } from "./src/refresh-lock.mjs"
 import { createUsageCache } from "./src/usage-cache.mjs"
+import { startDeviceGrant, approvalUrl, pollForKey, openIsolatedBrowser } from "./src/device-login.mjs"
 
 // ── 配置 ──────────────────────────────────────────────────────────────
 
@@ -259,10 +260,12 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
          */
         async authorize(_inputs) {
           // 铁律 2：authorize 立刻返回；读本机登录态放在 callback 里做。
+          // url 给 about:blank：本方式不需要任何页面，也不允许 magpie 顺手打开
+          // 默认浏览器（那会复用用户日常浏览器里的 alysis 会话）。
           return {
-            url: "https://alysiscode.com/account",
+            url: "about:blank",
             instructions:
-              "本插件复用本机 Alysis Code 客户端已经登录的免费账号（slk_ key），不用在这里输入任何东西。请确认 Alysis Code 已登录，然后点继续。",
+              "本插件复用本机 Alysis Code 客户端已经登录的免费账号（slk_ key），不用输入任何东西，也不会打开浏览器。请确认 Alysis Code 已登录，然后点继续。",
             method: "auto", // "auto" | "code"（code = 用户要粘贴授权码）
             opened: true, // true = 插件自己已经开了页面，magpie 别再开
 
@@ -291,6 +294,49 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
                 }
               } catch (e) {
                 return { type: "failed", error: `读取 Alysis Code 登录态失败：${e?.message ?? e}` }
+              }
+            },
+          }
+        },
+      },
+
+      // 备选：隔离浏览器 + 设备码（本机 Alysis Code 没登录时用）。
+      // 绝不用默认浏览器：设备码由插件发起，批准页在一个一次性的 Chromium
+      // user-data-dir 里打开，关闭后整个 profile 删掉。
+      {
+        type: "oauth",
+        label: `在隔离浏览器里登录（${PROVIDER_NAME}）`,
+
+        async authorize() {
+          // 铁律 2：立刻返回。设备码与浏览器都在 callback 里。
+          return {
+            url: "about:blank", // magpie 不要打开任何页面
+            opened: true,
+            instructions:
+              "会打开一个一次性的隔离浏览器窗口（独立配置，不会复用默认浏览器里的登录态）。请在窗口里登录 Alysis 并批准登录码；窗口关闭后自动完成。",
+            method: "auto",
+
+            async callback() {
+              let win = null
+              try {
+                const grant = await startDeviceGrant()
+                win = openIsolatedBrowser(approvalUrl(grant.userCode))
+                const key = await pollForKey(grant)
+                if (!/^slk_/.test(key)) {
+                  return { type: "failed", error: "服务端返回的 key 不是 slk_ 开头，拒绝保存" }
+                }
+                return {
+                  type: "success",
+                  access: key,
+                  refresh: key,
+                  expires: Date.now() + 365 * 24 * 3600 * 1000,
+                  accountId: "",
+                  uid: fingerprint(key),
+                }
+              } catch (e) {
+                return { type: "failed", error: `隔离浏览器登录失败：${e?.message ?? e}` }
+              } finally {
+                win?.close()
               }
             },
           }

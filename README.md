@@ -50,7 +50,21 @@ magpie plugin add magpie-alysis-auth
 magpie plugin add github:MYCF711/magpie-alysis-auth
 ```
 
-装好后在 magpie 的供应商列表点 **Alysis Code 免费额度** → 登录，插件会自动读出本机凭证。
+装好后在 magpie 的供应商列表点 **Alysis Code 免费额度** → 登录。两种方式，都不碰默认浏览器：
+
+| 方式 | 做什么 | 打开浏览器？ |
+| --- | --- | --- |
+| **使用本机 Alysis Code 登录态**（默认） | 读 `%LOCALAPPDATA%\alysis\alysis\credentials.json` 里的 `slk_` key | 不打开 |
+| **在隔离浏览器里登录**（备选） | 设备码 + 一次性 Chromium `user-data-dir` 打开 `/activate`，批准后拿 key，窗口关闭即删 profile | 只开隔离窗口，不复用日常浏览器的登录态 |
+
+### 浏览器隔离
+
+插件绝不调用默认浏览器去打开登录页。备选方式用的是 `src/device-login.mjs` + `src/browser-login.mjs`：
+
+- 启动参数带独立的 `--user-data-dir=%TEMP%\magpie-alysis-login-*`，没有用户日常浏览器的 Cookie / 扩展 / 同步；
+- 用完立刻 `kill` 并删除整个临时 profile；
+- 找不到 Chromium 内核浏览器时明确报错，不会退回默认浏览器；
+- 设备码流程只在 https 上走，`device_code` 与 `slk_` key 不经过明文连接。
 
 ### 命令行
 
@@ -66,7 +80,7 @@ magpie plugin list
 先看 alysis2api 是否在跑：`curl http://127.0.0.1:8788/healthz`。反代没起来时插件会退回内置的 6 个静态模型，不会整张卡消失。
 
 **登录点了没反应？**
-插件不弹浏览器，它读的是本机 Alysis Code 的登录态。确认 Alysis Code 已经登录（`alysis whoami` 能显示账号），再点一次。
+默认方式不弹浏览器，它读的是本机 Alysis Code 的登录态。确认 Alysis Code 已经登录（`alysis whoami` 能显示账号），再点一次。本机客户端没登录时，改用「在隔离浏览器里登录」。
 
 **某个模型报 `model_not_allowed` / `Unknown hosted model`？**
 这个模型不在你账号的可用目录里（免费层没有 DeepSeek V4 Pro）。换 `deepseek-chat` 或 `glm-5.3-flash`。

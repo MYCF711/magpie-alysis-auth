@@ -34,6 +34,21 @@
 插件只读这些文件，不写。`uid` 用 key 的 SHA-256 前 12 位（区分多账号），`accountId` 留空
 （本机凭证没有用户名；按规范「名字取不到就是空串」，不拿内部 ID 冒充名字）。
 
+## 浏览器隔离（备选登录方式）
+
+默认路径不打开任何浏览器。本机客户端没登录时，用「在隔离浏览器里登录」：
+
+1. `POST {cloud}/device-code`（`client_name` + 随机 `installation_id`）拿 `user_code`；
+2. `openIsolatedBrowser()` 用独立 `--user-data-dir=%TEMP%\magpie-alysis-login-*` 启动 Chromium，
+   打开 `https://alysiscode.com/activate?code=<user_code>` —— 没有用户日常浏览器的 Cookie / 扩展 / 同步；
+3. 轮询 `POST {cloud}/device-token` 直到 `approved`，拿 `slk_` key；
+4. `finally` 里 kill 浏览器并删除整个临时 profile。
+
+协议来自 Alysis Code CLI：`alysis_code/alysis_cloud.py`（端点与 URL）与 `account_login.py`
+（`_request_device_code` / `_poll_for_key` 的字段与状态机）。云地址不是凭据，服务端按设备键认证。
+
+找不到 Chromium 内核浏览器时明确报错，**不会退回默认浏览器** —— 退回就等于复用用户日常会话。
+
 ## 模型目录
 
 `provider.models()` 调 `GET {BASE}/models`，反代自己按 `models.cacheSeconds` 从上游
