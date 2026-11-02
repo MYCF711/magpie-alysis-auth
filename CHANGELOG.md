@@ -3,6 +3,12 @@
 > 每个版本一节，**一条一行**，说用户能感知的变化。
 > 格式与规矩见 [UPDATING.md](./UPDATING.md)。
 
+## 0.1.7 — 2026-11-03
+
+**修复**
+
+- 同一个 Alysis 账号重复登录会并排出现两张卡（`MYCF711` 和 `Signed in (xxxxxx)`）：`auth.single: true`，并且登录时从 account-status 读取 `display_name` 作为 accountId，同名账号自动合并
+
 ## 0.1.6 — 2026-11-03
 
 **回退**

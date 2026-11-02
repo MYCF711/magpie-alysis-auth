@@ -68,6 +68,8 @@ const PROVIDER_NAME = "Alysis Code 免费额度" // ⚠ 改成 <中文> <English
 const BASE = "http://127.0.0.1:8788/v1"
 const SDK = "@ai-sdk/openai-compatible" // 决定 API 形状，见下表
 const REFRESH_LEAD_MS = 5 * 60_000
+// Alysis 云端函数 API（设备码、账号状态）；和网关同源，但不是凭据。
+const CLOUD_API = "https://vzigujbcjjmpntxhmyvr.supabase.co/functions/v1"
 
 // npm 包 → API 形状
 //   @ai-sdk/anthropic        → Anthropic Messages  /messages
@@ -180,6 +182,27 @@ function fingerprint(key) {
   return crypto.createHash("sha256").update(String(key)).digest("hex").slice(0, 12)
 }
 
+/** 调 account-status 拿卡片上显示的账号名（失败返回空串，绝不编造）。 */
+async function resolveAccountId(key) {
+  if (!key) return ""
+  try {
+    const response = await fetch(`${CLOUD_API}/account-status`, {
+      headers: { authorization: `Bearer ${key}`, accept: "application/json" },
+      signal: AbortSignal.timeout(8_000),
+    })
+    if (!response.ok) return ""
+    const data = await response.json()
+    const name = String(
+      data?.display_name || data?.user?.display_name || data?.email || data?.user?.email || "",
+    ).trim()
+    // 内部 ID / 纯十六进制指纹不当名字用
+    if (!name || /^[0-9a-f]{8,}$/i.test(name)) return ""
+    return name
+  } catch {
+    return ""
+  }
+}
+
 // ── 插件入口 ──────────────────────────────────────────────────────────
 
 export const AlysisAuthPlugin = async (_ctx, _options) => {
@@ -223,6 +246,9 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
     //   两处内容一样，直接抄同一份 data URI。见 HOOKS.md「插件自己的图标」。
     icon: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjggMTI4Ij48cmVjdCB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgcng9IjI4IiBmaWxsPSIjMWYyOTM3Ii8+PHRleHQgeD0iNjQiIHk9Ijg0IiBmb250LXNpemU9IjYwIiBmb250LWZhbWlseT0ic3lzdGVtLXVpLHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiM2MGE1ZmEiIHRleHQtYW5jaG9yPSJtaWRkbGUiPkE8L3RleHQ+PC9zdmc+",
     maxConcurrency: 4, // 1-1000
+    // 同一 provider 只保留一张卡：本机导入与设备码登录拿到的是同一个账号，
+    // 不设 single 会各加一条（「MYCF711」和「Signed in (xxxxxx)」并排）。
+    single: true,
     refreshLead: REFRESH_LEAD_MS,
 
     // ═══ ② 登录 ═══════════════════════════════════════════════════
@@ -289,7 +315,7 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
 
                   // ⚠ accountId 是「名字」，不是身份：本机登录态里没有用户名，
                   //   按规范返回空串（宿主会回退成供应商名），内部指纹只进 uid。
-                  accountId: "",
+                  accountId: await resolveAccountId(found.key),
                   uid: fingerprint(found.key),
                 }
               } catch (e) {
@@ -374,7 +400,7 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
                   access: key,
                   refresh: key,
                   expires: Date.now() + 365 * 24 * 3600 * 1000,
-                  accountId: "",
+                  accountId: await resolveAccountId(key),
                   uid: fingerprint(key),
                 }
               } catch (e) {
