@@ -100,18 +100,10 @@ const CLOUD_API = "https://vzigujbcjjmpntxhmyvr.supabase.co/functions/v1"
 // gpt-6-luna 走 responses，claude 走 messages —— 这里用不同的 npm 包表达。
 const MODELS = [
   ["deepseek-flash", "DeepSeek V4.1 Flash", 1_000_000, ["low", "medium", "high"], null, true],
-  ["deepseek-chat", "DeepSeek Chat", 1_000_000, ["low", "medium", "high"], null, true],
-  ["deepseek-reasoner", "DeepSeek Reasoner", 1_000_000, ["low", "medium", "high"], null, true],
   ["glm-5.3-flash", "GLM 5.3 Flash", 1_000_000, ["low", "medium", "high"], null, false],
   ["gpt-6-luna", "GPT-6 Luna", 1_000_000, ["low", "medium", "high"], "@ai-sdk/openai", false],
   ["claude-haiku-5-5", "Claude Haiku 5.5", 1_000_000, ["low", "medium", "high"], "@ai-sdk/anthropic", true],
 ]
-
-/** 别名 → 上游真实模型 id（上游只认 deepseek-flash 等 4 个 id，不认别名）。 */
-const API_ID = {
-  "deepseek-chat": "deepseek-flash",
-  "deepseek-reasoner": "deepseek-flash",
-}
 
 /** 静态模型表（未登录 / 拉取失败时兜底） */
 function staticModels() {
@@ -120,7 +112,7 @@ function staticModels() {
     out[id] = {
       id,
       name,
-      api: { id: API_ID[id] || id, url: BASE, npm: npm || SDK },
+      api: { id, url: BASE, npm: npm || SDK },
       status: "active",
       cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
       limit: { context, output: 128_000 },
@@ -722,17 +714,8 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
           }
         }
 
-        // 别名在上游没有独立 id：模型名留给用户选，api.id 指向真实模型。
-        for (const [alias, target] of Object.entries(API_ID)) {
-          if (out[alias] || !out[target]) continue
-          out[alias] = {
-            ...out[target],
-            id: alias,
-            // 别名用自己的名字，否则列表里会出现三个「DeepSeek V4.1 Flash」
-            name: fallback[alias]?.name || alias,
-            api: { ...out[target].api, id: target },
-          }
-        }
+        // 只列上游真实模型：别名（deepseek-chat / deepseek-reasoner）会让人以为
+        // 是不同模型，去重后只留最直观的那一个。
         return out
       } catch (e) {
         // 登录被拒 → 标记账号（明确 401 / unauthorized 才这么做）

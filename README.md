@@ -20,7 +20,7 @@
 
 ## 模型
 
-**DeepSeek**（`deepseek-flash`，别名 `deepseek-chat` / `deepseek-reasoner`）、**智谱 GLM**（`glm-5.3-flash`）、**OpenAI**（`gpt-6-luna`，Responses API）、**Anthropic**（`claude-haiku-5-5`，Messages API）。
+**DeepSeek**（`deepseek-flash`）、**智谱 GLM**（`glm-5.3-flash`）、**OpenAI**（`gpt-6-luna`，Responses API）、**Anthropic**（`claude-haiku-5-5`，Messages API）。同一个模型只有一个名字，不做别名去重。
 
 模型目录随账号与上游上下架变化，装好后以 magpie 里显示的为准；插件只保证四个发行商都有兜底条目。
 
@@ -83,7 +83,7 @@ magpie plugin list
 默认方式不弹浏览器，它读的是本机 Alysis Code 的登录态。确认 Alysis Code 已经登录（`alysis whoami` 能显示账号），再点一次。本机客户端没登录时，改用「在隔离浏览器里登录」。
 
 **某个模型报 `model_not_allowed` / `Unknown hosted model`？**
-这个模型不在你账号的可用目录里（免费层没有 DeepSeek V4 Pro）。换 `deepseek-chat` 或 `glm-5.3-flash`。
+这个模型不在你账号的可用目录里（免费层没有 DeepSeek V4 Pro）。换 `deepseek-flash` 或 `glm-5.3-flash`。
 
 **一直 429 / 排队很久？**
 免费层的 DeepSeek 与 GLM 容量池在高峰会满员。反代会在预算内自动排队；错峰（凌晨/清晨）成功率更高。额度不会因为 429 被扣（上游明确 `No generation was started or credits charged`）。
