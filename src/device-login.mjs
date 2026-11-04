@@ -65,7 +65,7 @@ function postJson(url, body, timeoutMs = 15_000) {
 /** 发起设备码登录，返回 grant（user_code / device_code / 轮询参数）。 */
 export async function startDeviceGrant({ clientName, installationId } = {}) {
   const body = {
-    client_name: String(clientName || `magpie-alysis-auth @ ${process.env.COMPUTERNAME || "host"}`).slice(0, 80),
+    client_name: String(clientName || `magpie-alysis-code @ ${process.env.COMPUTERNAME || "host"}`).slice(0, 80),
     installation_id: String(installationId || crypto.randomUUID()),
   }
   const data = await postJson(`${cloudApi()}/device-code`, body)

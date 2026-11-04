@@ -37,12 +37,12 @@ test("startDeviceGrant：解析 device_code / user_code / interval / expires_in"
   const restore = stubFetch(async (url, init) => {
     assert.match(String(url), /\/device-code$/)
     const body = JSON.parse(String(init.body))
-    assert.equal(body.client_name, "magpie-alysis-auth @ test")
+    assert.equal(body.client_name, "magpie-alysis-code @ test")
     assert.ok(body.installation_id)
     return jsonResponse({ device_code: "dc-1", user_code: "UC-1", interval: 5, expires_in: 900 })
   })
   try {
-    const grant = await startDeviceGrant({ clientName: "magpie-alysis-auth @ test", installationId: "i-1" })
+    const grant = await startDeviceGrant({ clientName: "magpie-alysis-code @ test", installationId: "i-1" })
     assert.deepEqual(
       { deviceCode: grant.deviceCode, userCode: grant.userCode, intervalS: grant.intervalS, expiresInS: grant.expiresInS },
       { deviceCode: "dc-1", userCode: "UC-1", intervalS: 5, expiresInS: 900 },

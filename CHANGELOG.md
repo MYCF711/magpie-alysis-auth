@@ -3,6 +3,14 @@
 > 每个版本一节，**一条一行**，说用户能感知的变化。
 > 格式与规矩见 [UPDATING.md](./UPDATING.md)。
 
+## 0.1.14 — 2026-11-04
+
+**包名改为 `magpie-alysis-code`**
+
+- 原包名 `magpie-alysis-auth` 因脱敏整包撤下，npm 对同名包锁 24 小时；改用新名发布
+- 安装命令变为 `magpie plugin add magpie-alysis-code`；从源码安装仍是 `github:MYCF711/magpie-alysis-auth`
+- 代码、provider id（`alysis`）、卡片显示名（Alysis Code 免费额度）都不变；装过旧包的机器重装一次即可
+
 ## 0.1.13 — 2026-11-04
 
 **出站 UA 全部换成官方客户端 UA（同步脚手架 0.3.10 的坑表第 38 条）**
