@@ -13,6 +13,20 @@ export const PROVIDER_NAME = "Alysis Code 免费额度"
 export const BASE = "http://127.0.0.1:8788/v1"
 
 /**
+ * 打上游的 UA —— **一个插件只留这一个常量，所有出站点（api / chat / loader /
+ * usage / models / hooks）都引用它**。
+ *
+ * ⚠ 值必须是「官方客户端」的 UA，**不能是 `<产品名>/<版本号>`**：上游网关按
+ * `<product>/<version>` 形态认「第三方客户端」，命中即回
+ * `403 {"error_code":"TM.00000001","error_msg":"网络繁忙，请稍后重试"}`；
+ * 而不显式设 UA 时宿主会把 `magpie/<version>` 原样透传，同样命中。
+ * Alysis 的官方客户端就是官方网页（Cookie / 网页里创建的 slk_ key），
+ * 所以这里逐字用一条完整合法的 Chrome UA —— 别改版本号，也别退回产品名。
+ */
+export const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+
+/**
  * 决定 API 形状，别乱选：
  *   @ai-sdk/anthropic         → Anthropic Messages  /messages
  *   @ai-sdk/openai            → OpenAI Responses    /responses

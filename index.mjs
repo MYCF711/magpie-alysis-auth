@@ -57,6 +57,7 @@ import path from "node:path"
 import crypto from "node:crypto"
 
 import { usage as buildUsage, usageWindow } from "./src/quota.mjs"
+import { USER_AGENT } from "./src/context.mjs"
 import { createRefreshLock } from "./src/refresh-lock.mjs"
 import { createUsageCache } from "./src/usage-cache.mjs"
 import { startDeviceGrant, approvalUrl, pollForKey, openIsolatedBrowser } from "./src/device-login.mjs"
@@ -185,7 +186,7 @@ async function resolveAccountId(key) {
   if (!key) return ""
   try {
     const response = await fetch(`${CLOUD_API}/account-status`, {
-      headers: { authorization: `Bearer ${key}`, accept: "application/json" },
+      headers: { authorization: `Bearer ${key}`, accept: "application/json", "user-agent": USER_AGENT },
       signal: AbortSignal.timeout(8_000),
     })
     if (!response.ok) return ""
@@ -468,7 +469,9 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
         // 每个账号用自己的 slk_ key 直连上游；magpie 按 SDK 自动加 Authorization / x-api-key。
         apiKey: auth.access || "sk-local",
         headers: {
-          "user-agent": "alysis-magpie/0.1.0",
+          // 官方客户端 UA（唯一常量）。别写 `alysis-magpie/<版本>`：那个形态会被上游
+          // 网关判成第三方客户端，回 403 TM.00000001。
+          "user-agent": USER_AGENT,
         },
 
         async fetch(input, init) {
@@ -484,6 +487,9 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
           const headers = {
             authorization: `Bearer ${fresh.access || "sk-local"}`,
             "content-type": "application/json",
+            // ⚠ 必须显式带 UA：不带就透传宿主的 `magpie/<version>`，那个形态会被上游
+            // 判成第三方客户端（403 TM.00000001）。宿主传来的 UA 一律丢弃（见下面的跳过名单）。
+            "user-agent": USER_AGENT,
           }
           for (const [k, v] of incoming) {
             const lower = k.toLowerCase()
@@ -754,7 +760,7 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
 async function fetchUsage(auth) {
   // 每账号直连 account-status：额度属于 key 自己，不经过本机反代（那会用池里的号串账）。
   const res = await fetch(`${CLOUD_API}/account-status`, {
-    headers: { authorization: `Bearer ${auth.access || ""}` },
+    headers: { authorization: `Bearer ${auth.access || ""}`, "user-agent": USER_AGENT },
     signal: AbortSignal.timeout(12_000),
   })
   if (!res.ok) throw new Error(`account-status HTTP ${res.status}`)
@@ -797,7 +803,7 @@ async function fetchUsage(auth) {
  */
 async function fetchLiveModels(auth) {
   const res = await fetch(`${BASE}/models`, {
-    headers: { authorization: `Bearer ${auth.access || ""}` },
+    headers: { authorization: `Bearer ${auth.access || ""}`, "user-agent": USER_AGENT },
     signal: AbortSignal.timeout(12_000),
   })
   if (res.status === 401) throw new Error("401 登录已失效")

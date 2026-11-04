@@ -24,6 +24,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { findBrowser } from "./browser-login.mjs"
+import { USER_AGENT } from "./context.mjs"
 
 const DEFAULT_CLOUD_API = "https://vzigujbcjjmpntxhmyvr.supabase.co/functions/v1"
 const SITE_URL = "https://alysiscode.com"
@@ -40,7 +41,8 @@ function cloudApi() {
 function postJson(url, body, timeoutMs = 15_000) {
   return fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json", accept: "application/json" },
+    // 设备码服务也在真上游上：显式带官方 UA，别透传宿主的 `magpie/<version>`
+    headers: { "content-type": "application/json", accept: "application/json", "user-agent": USER_AGENT },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs),
   }).then(async (res) => {

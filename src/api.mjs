@@ -9,7 +9,7 @@
 //   ② **模型级错误用 404，不要 401** —— 401 会被 magpie 当成登录失效，整个账号被停
 //   ③ 每个请求都带超时（AbortSignal.timeout），没有超时的 fetch 会挂死整张卡片
 
-import { BASE } from "./context.mjs"
+import { BASE, USER_AGENT } from "./context.mjs"
 
 /** 上游给的业务错误。带上 status 与 code，调用方才能分流。 */
 export class ApiError extends Error {
@@ -37,7 +37,9 @@ export function headersFor(auth = {}) {
   const h = {
     "content-type": "application/json",
     accept: "application/json",
-    "user-agent": "magpie-plugin/0.0.0", // TODO: 换成真实 UA，有的厂商硬校验它
+    // 官方客户端 UA（全插件唯一常量，见 src/context.mjs）。别写 `<产品名>/<版本号>`：
+    // 那个形态会被上游网关判成第三方客户端，回 403 TM.00000001。
+    "user-agent": USER_AGENT,
   }
   if (auth.token) h.authorization = `Bearer ${auth.token}`
   // TODO: 需要组织码 / 租户头的话在这里加
