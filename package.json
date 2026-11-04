@@ -1,6 +1,6 @@
 {
   "name": "magpie-alysis-auth",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "description": "magpie / OpenCode provider plugin for Alysis Code: its free-tier DeepSeek V4.1 Flash, GLM 5.3 Flash, GPT-6 Luna and Claude Haiku models, served through the local alysis2api reverse proxy — no paid plan, no API key to paste.",
   "type": "module",
   "main": "./index.mjs",
@@ -54,7 +54,8 @@
     "release": "node scripts/release.mjs",
     "score": "node scripts/score.mjs",
     "maintenance": "node scripts/check-maintenance.mjs",
-    "publish:npm": "node scripts/publish-npm.mjs"
+    "publish:npm": "node scripts/publish-npm.mjs",
+    "check:ua": "node scripts/check-ua.mjs ."
   },
   "repository": {
     "type": "git",

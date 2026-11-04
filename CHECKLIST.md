@@ -81,6 +81,14 @@
             provider name 与 registry-entry.json.name 同显示名；都不含占位符；
             registry-entry.json.package 是 npm 包名，不是显示名
       出处：README「包名是 slug；显示名写 magpie.name」/ UPDATING「旧版带空格依赖键」
+
+□ 17. 出站 User-Agent 是官方客户端 UA，不是我们自己的产品名
+      判据：node scripts/check-ua.mjs . 退出码 = 0；
+            插件里搜不到 `magpie/…` / `magpie-xxx/<ver>` / `"node"` / `Bun/…` /
+            截断的 Mozilla（缺 `(KHTML, like Gecko) Chrome/… Safari/537.36`）；
+            官方是网页的是完整 Chrome UA，有 App / CLI 客户端的是那个客户端的 UA；
+            loader 的 `fetch` 包装里 `"user-agent"` 在跳过名单内、由插件补官方值
+      出处：模板坑表第 38 条 · scripts/check-ua.mjs
 ```
 
 ---
