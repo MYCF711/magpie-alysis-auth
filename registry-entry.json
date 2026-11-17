@@ -5,7 +5,7 @@
     "alysis"
   ],
   "summary": {
-    "en": "The free DeepSeek V4.1 Flash, GLM 5.3 Flash, GPT-6 Luna and Claude Haiku models of your Alysis Code account, served through the local alysis2api OpenAI-compatible proxy.",
-    "zh": "把 Alysis Code 免费账号里的 DeepSeek V4.1 Flash、GLM 5.3 Flash、GPT-6 Luna、Claude Haiku 接进 magpie，走本机 alysis2api 反代，不用充值、不用粘贴 key。"
+    "en": "The free DeepSeek V4.1 Flash, GLM 5.3 Flash, GPT-6 Luna and Claude Haiku models of your Alysis Code account, straight from the Alysis upstream gateway with the account's own key — nothing else to install or run.",
+    "zh": "把 Alysis Code 免费账号里的 DeepSeek V4.1 Flash、GLM 5.3 Flash、GPT-6 Luna、Claude Haiku 接进 magpie，插件直连上游，不用充值、不用粘贴 key，也不用装本地反代。"
   }
 }

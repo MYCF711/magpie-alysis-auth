@@ -516,8 +516,8 @@ export const AlysisAuthPlugin = async (_ctx, _options) => {
                 JSON.stringify({
                   error: {
                     message:
-                      `${PROVIDER_NAME} 的本地反代没有运行。` +
-                      `连不上 Alysis 网关（${BASE}）。检查网络或代理设置后重试。`,
+                      `连不上 ${PROVIDER_NAME} 的上游网关（${BASE}）。` +
+                      `检查网络或代理设置后重试。`,
                     type: "upstream_unreachable",
                     code: "alysis_upstream_unreachable",
                   },
