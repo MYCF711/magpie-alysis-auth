@@ -1,18 +1,23 @@
 # 内部实现与证据
 
-## 数据通道：本机 alysis2api 反代
+## 数据通道：直连 Alysis 上游网关
 
-插件不直接调用 Alysis 的上游网关，而是走同目录仓库 `alysis2api` 提供的本地 OpenAI 兼容反代
-（`http://127.0.0.1:8788/v1`）。原因：
+插件**直接调上游**，不经过任何本地反代或中间进程（0.1.9 起）：
 
-1. **429 排队**：免费层 `deepseek-flash` / `glm-5.3-flash` 的容量池在高峰会返回
-   `429 hosted_capacity_exceeded`（"capacity is busy. Retry in N seconds"），反代负责解析、
-   等待、重试，并在流式请求期间发 SSE keepalive。插件不重复实现这层。
-2. **协议分流**：上游按模型走三个不同协议（chat / responses / messages），反代统一暴露，
-   插件只用按 `api.npm` 选择正确的 AI SDK 包。
-3. **多账号与额度**：账号池、冷却、本地用量统计都在反代里；插件只读 `/v1/models` 与 `/v1/usage`。
+| 用途 | 地址 | 用谁的 key |
+| --- | --- | --- |
+| 模型请求 | `https://vzigujbcjjmpntxhmyvr.supabase.co/functions/v1/llm/v1` | 该账号自己的 `slk_`（`Authorization: Bearer`） |
+| 模型目录 | 同基址 `GET /models` | 同上，目录属于这个 key |
+| 额度 | `https://vzigujbcjjmpntxhmyvr.supabase.co/functions/v1/account-status` | 同上 |
 
-反代没启动时，`loader.fetch` 捕获 `ECONNREFUSED` 并返回 503 + 启动提示，不抛未处理异常。
+为什么不走本地反代：反代是单账号池，多个 Alysis 账号会串账 —— 所有卡片都显示第一张卡的额度，
+模型列表和请求也都落到同一个号上。每账号直连后，请求、模型、额度三者都用账号自己的 key。
+
+代价：429 不再由本地排队消化。上游容量忙时 429 原样返回，交给 magpie 的账号路由换号或降级；
+插件不改写流式响应、不读流。
+
+连不上网关（`ECONNREFUSED` / `fetch failed`）时，`loader.fetch` 捕获后返回 503 +
+`alysis_upstream_unreachable`，不抛未处理异常。
 
 ## 登录：导入本机凭证
 
@@ -94,7 +99,7 @@
 
 | 场景 | 返回 |
 | --- | --- |
-| 本地反代没启动 | 503 + `alysis2api_unreachable`，提示启动命令 |
+| 连不上上游网关 | 503 + `alysis_upstream_unreachable`，提示检查网络或代理 |
 | 模型不在账号目录 | 上游 403 `model_not_allowed` 原样透传（不是 401） |
 | 登录态失效 | 401 + `X-Magpie-Sign-In: expired` |
 

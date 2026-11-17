@@ -9,8 +9,8 @@ export const PROVIDER = "alysis"
 /** 卡片上显示的供应商名：必须 <中文> <English>，英文照抄厂商官方品牌写法 */
 export const PROVIDER_NAME = "Alysis Code 免费额度"
 
-/** 上游 API 基址 */
-export const BASE = "http://127.0.0.1:8788/v1"
+/** 上游 API 基址 —— Alysis 自己的 hosted 网关，插件直连，不经过本地反代 */
+export const BASE = "https://vzigujbcjjmpntxhmyvr.supabase.co/functions/v1/llm/v1"
 
 /**
  * 打上游的 UA —— **一个插件只留这一个常量，所有出站点（api / chat / loader /
